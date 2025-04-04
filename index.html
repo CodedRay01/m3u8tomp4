@@ -578,4 +578,232 @@
                             }
                         });
                     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                        // Native HLS support (Saf
+                           // Native HLS support (Safari)
+                        video.src = url;
+                        videoContainer.style.display = 'block';
+                        
+                        video.addEventListener('loadedmetadata', function() {
+                            video.play().catch(err => {
+                                console.log('Auto-play prevented:', err);
+                            });
+                            showAlert('success', 'Video loaded successfully! You can now play and convert it.');
+                        });
+                        
+                        video.addEventListener('error', function(e) {
+                            showAlert('danger', 'Error loading video: ' + video.error.message);
+                        });
+                    } else {
+                        showAlert('danger', 'Your browser does not support HLS playback');
+                    }
+                } catch (err) {
+                    showAlert('danger', 'Error initializing video player: ' + err.message);
+                }
+            }
+
+            // Convert and Download Functionality
+            downloadBtn.addEventListener('click', function() {
+                if (!currentM3u8Url || isConverting) return;
+                
+                // Check if MediaRecorder is supported
+                if (typeof MediaRecorder === 'undefined') {
+                    showAlert('danger', 'Your browser does not support MediaRecorder. Try using Chrome or Firefox.');
+                    return;
+                }
+                
+                isConverting = true;
+                downloadBtn.disabled = true;
+                progressContainer.style.display = 'block';
+                recordedChunks = [];
+                
+                try {
+             // Use a supported MIME type
+                    let options = {};
+                    if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+                        options = {mimeType: 'video/webm; codecs=vp9'};
+                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+                        options = {mimeType: 'video/webm; codecs=vp8'};
+                    } else if (MediaRecorder.isTypeSupported('video/webm')) {
+                        options = {mimeType: 'video/webm'};
+                    } else {
+                        showAlert('danger', 'No suitable media format found for your browser.');
+                        isConverting = false;
+                        downloadBtn.disabled = false;
+                        return;
+                    }
+                    
+                    // Set up MediaRecorder with the video element as source
+                    const stream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
+                    mediaRecorder = new MediaRecorder(stream, options);
+                    
+                    mediaRecorder.ondataavailable = function(e) {
+                        if (e.data && e.data.size > 0) {
+                            recordedChunks.push(e.data);
+                        }
+                    };
+                    
+                    mediaRecorder.onstop = function() {
+                        try {
+                            if (recordedChunks.length === 0) {
+                                showAlert('danger', 'No data was recorded. Please try again.');
+                                isConverting = false;
+                                downloadBtn.disabled = false;
+                                return;
+                            }
+                            
+                            const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+                            const url = URL.createObjectURL(blob);
+                            
+                            // Generate file name from URL or random
+                            let fileName = 'converted-video';
+                            try {
+                                const urlObj = new URL(currentM3u8Url);
+                                const pathParts = urlObj.pathname.split('/');
+                                const lastPart = pathParts[pathParts.length - 1];
+                                if (lastPart) {
+                                    fileName = lastPart.replace('.m3u8', '');
+                                }
+                            } catch (e) {
+                                // If URL parsing fails, use timestamp
+                                fileName += '-' + Date.now();
+                            }
+                            
+                            // Download the recorded video
+                            download(blob, `${fileName}.mp4`, 'video/mp4');
+                            
+                            // Reset everything
+                            isConverting = false;
+                            downloadBtn.disabled = false;
+                            progressContainer.style.display = 'none';
+                            showAlert('success', 'Conversion completed! Video downloaded.');
+                        } catch (err) {
+                            showAlert('danger', 'Error finishing conversion: ' + err.message);
+                            isConverting = false;
+                            downloadBtn.disabled = false;
+                        }
+                    };
+                    
+                    // Start recording
+                    video.currentTime = 0;
+                    video.play().then(() => {
+                        try {
+                            mediaRecorder.start(1000); // Collect data in 1-second chunks
+                            
+                            // Show progress based on video duration
+                            const duration = video.duration || 0;
+                            if (duration > 0) {
+                                const updateInterval = setInterval(() => {
+                                    const currentTime = video.currentTime;
+                                    const percentage = Math.min((currentTime / duration) * 100, 100);
+                                    progress.style.width = `${percentage}%`;
+                                    progressText.textContent = `Processing: ${Math.round(percentage)}%`;
+                                    
+                                    if (percentage >= 100 || !isConverting) {
+                                        clearInterval(updateInterval);
+                                        
+                                        // Wait a bit to ensure all chunks are collected
+                                        setTimeout(() => {
+                                            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                                                mediaRecorder.stop();
+                                            }
+                                        }, 1000);
+                                    }
+                                }, 500);
+                                
+                                // Add event listener for when the video ends
+                                video.onended = function() {
+                                    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                                        setTimeout(() => mediaRecorder.stop(), 1000);
+                                    }
+                                    clearInterval(updateInterval);
+                                };
+                            } else {
+                                // If duration is unknown, use a timer approach
+                                showAlert('success', 'Converting... This may take a while for longer videos.');
+                                // Stop after 30 seconds if video doesn't end
+                                setTimeout(() => {
+                                    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                                        mediaRecorder.stop();
+                                    }
+                                }, 30000);
+                            }
+                        } catch (err) {
+                            showAlert('danger', 'Error during conversion: ' + err.message);
+                            isConverting = false;
+                            downloadBtn.disabled = false;
+                        }
+                    }).catch(error => {
+                        console.error('Error playing video:', error);
+                        showAlert('danger', 'Error starting conversion: ' + error.message);
+                        isConverting = false;
+                        downloadBtn.disabled = false;
+                    });
+                } catch (err) {
+                    showAlert('danger', 'Error setting up converter: ' + err.message);
+                    isConverting = false;
+                    downloadBtn.disabled = false;
+                }
+            });
+
+            // Reset Button Functionality
+            resetBtn.addEventListener('click', function() {
+                resetVideo();
+                m3u8UrlInput.value = '';
+                fileInput.value = '';
+                fileNameDisplay.innerHTML = '';
+                selectedFile = null;
+                loadFileBtn.disabled = true;
+                videoContainer.style.display = 'none';
+                progressContainer.style.display = 'none';
+                hideAlerts();
+            });
+
+            // Helper Functions
+            function resetVideo() {
+                if (hls) {
+                    hls.destroy();
+                    hls = null;
+                }
+                
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    try {
+                        mediaRecorder.stop();
+                    } catch (e) {
+                        console.error('Error stopping MediaRecorder:', e);
+                    }
+                }
+                
+                isConverting = false;
+                recordedChunks = [];
+                downloadBtn.disabled = false;
+                
+                try {
+                    video.pause();
+                    video.src = '';
+                    video.load();
+                } catch (e) {
+                    console.error('Error resetting video:', e);
+                }
+            }
+
+            function showAlert(type, message) {
+                hideAlerts();
+                const alert = type === 'danger' ? errorAlert : successAlert;
+                alert.textContent = message;
+                alert.style.display = 'block';
+                
+                // Auto-hide after 8 seconds
+                setTimeout(() => {
+                    if (alert.style.display === 'block') {
+                        alert.style.display = 'none';
+                    }
+                }, 8000);
+            }
+
+            function hideAlerts() {
+                errorAlert.style.display = 'none';
+                successAlert.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
