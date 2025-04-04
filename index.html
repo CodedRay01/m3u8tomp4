@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M3U8 to MP4 Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/downloadjs/1.4.8/download.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+            --success-color: #4cc9f0;
+            --danger-color: #f72585;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fb;
+            color: var(--dark-color);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .description {
+            color: #6c757d;
+            font-size: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .tab {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .tab.active {
+            color: var(--primary-color);
+            border-bottom: 3px solid var(--primary-color);
+            margin-bottom: -2px;
+        }
+        
+        .tab:hover:not(.active) {
+            background-color: #f8f9fa;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 1rem;
+            transition: border-color 0.15s ease-in-out;
+        }
+        
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .btn:hover {
+            background-color: var(--secondary-color);
+        }
+        
+        .btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        
+        .video-container {
+            margin-top: 2rem;
+            display: none;
+        }
+        
+        video {
+            width: 100%;
+            border-radius: 5px;
+            background-color: #000;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 1rem;
+        }
+        
+        .progress-container {
+            margin-top: 2rem;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+        
+        .progress {
+            height: 100%;
+            background-color: var(--success-color);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+        
+        .alert {
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 5px;
+            font-weight: 600;
+            display: none;
+        }
+        
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alert-success {
+            background-color: #d1e7dd;
+            color: #0f5132;
+            border: 1px solid #badbcc;
+        }
+        
+        .drag-area {
+            border: 2px dashed #ced4da;
+            height: 150px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            padding: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        
+        .drag-area.active {
+            border-color: var(--primary-color);
+        }
+        
+        .drag-area p {
+            color: #6c757d;
+            margin-bottom: 0.5rem;
+        }
+        
+        .info-text {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background-color: #e7f5fe;
+            border-left: 4px solid var(--success-color);
+            border-radius: 5px;
+        }
+        
+        .info-text h3 {
+            color: var(--primary-color);
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .info-text p {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 2rem;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .sample-links {
+            margin: 1.5rem 0;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .sample-links h3 {
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+        }
+
+        .sample-links ul {
+            list-style-type: none;
+        }
+
+        .sample-links li {
+            margin-bottom: 0.5rem;
+        }
+
+        .sample-links a {
+            color: var(--primary-color);
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .sample-links a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1.5rem;
+                margin: 1rem;
+            }
+            
+            .tabs {
+                flex-direction: column;
+                border-bottom: none;
+            }
+            
+            .tab {
+                border-bottom: 1px solid #e9ecef;
+            }
+            
+            .tab.active {
+                border-bottom: 1px solid var(--primary-color);
+                margin-bottom: 0;
+            }
+            
+            .controls {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>M3U8 to MP4 Converter</h1>
+            <p class="description">Convert streaming media (M3U8) to MP4 video files easily</p>
+        </header>
+
+        <div class="alert alert-danger" id="errorAlert"></div>
+        <div class="alert alert-success" id="successAlert"></div>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="url">URL Link</div>
+            <div class="tab" data-tab="file">Upload File</div>
+        </div>
+
+        <div class="tab-content active" id="url-tab">
+            <div class="input-group">
+                <label for="m3u8-url">M3U8 URL:</label>
+                <input type="text" id="m3u8-url" placeholder="https://example.com/video.m3u8" />
+            </div>
+            <button class="btn" id="load-url">Load Video</button>
+            
+            <div class="sample-links">
+                <h3>Sample URLs (For Testing)</h3>
+                <ul>
+                    <li><a class="sample-url">https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8</a></li>
+                    <li><a class="sample-url">https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8</a></li>
+                    <li><a class="sample-url">https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="tab-content" id="file-tab">
+            <div class="input-group">
+                <label>Upload M3U8 File:</label>
+                <div class="drag-area" id="drag-area">
+                    <p>Drag & drop your .m3u8 file here or</p>
+                    <input type="file" id="file-input" accept=".m3u8,.txt" />
+                    <button class="btn" id="browse-btn">Browse File</button>
+                </div>
+            </div>
+            <div id="file-name-display"></div>
+            <button class="btn" id="load-file" disabled>Load Video</button>
+        </div>
+
+        <div class="video-container" id="video-container">
+            <video id="video" controls></video>
+            <div class="controls">
+                <button class="btn" id="download-btn">Convert & Download MP4</button>
+                <button class="btn btn-secondary" id="reset-btn">Reset</button>
+            </div>
+        </div>
+
+        <div class="progress-container" id="progress-container">
+            <div class="progress-bar">
+                <div class="progress" id="progress"></div>
+            </div>
+            <p class="progress-text" id="progress-text">Processing: 0%</p>
+        </div>
+
+        <div class="info-text">
+            <h3>How it works</h3>
+            <p>This tool uses your browser to process the M3U8 stream and convert it to MP4 format. The conversion happens entirely on your device - no data is uploaded to any server.</p>
+            <p>Note: Large videos may take some time to process, and browser limitations may affect the conversion of very large streams.</p>
+            <p><strong>Troubleshooting:</strong> If you encounter a network error, try using one of the sample links or check that your URL is a valid M3U8 stream. For file uploads, ensure your file is in the correct format.</p>
+        </div>
+
+        <footer>
+            <p>© 2025 M3U8 to MP4 Converter | All processing happens in your browser</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            const loadUrlBtn = document.getElementById('load-url');
+            const loadFileBtn = document.getElementById('load-file');
+            const m3u8UrlInput = document.getElementById('m3u8-url');
+            const fileInput = document.getElementById('file-input');
+            const fileNameDisplay = document.getElementById('file-name-display');
+            const browseBtn = document.getElementById('browse-btn');
+            const dragArea = document.getElementById('drag-area');
+            const videoContainer = document.getElementById('video-container');
+            const video = document.getElementById('video');
+            const downloadBtn = document.getElementById('download-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const progressContainer = document.getElementById('progress-container');
+            const progress = document.getElementById('progress');
+            const progressText = document.getElementById('progress-text');
+            const errorAlert = document.getElementById('errorAlert');
+            const successAlert = document.getElementById('successAlert');
+            const sampleUrls = document.querySelectorAll('.sample-url');
+
+            // Variables
+            let currentM3u8Url = '';
+            let hls = null;
+            let mediaRecorder = null;
+            let recordedChunks = [];
+            let isConverting = false;
+            let selectedFile = null;
+
+            // Sample URL Click Functionality
+            sampleUrls.forEach(link => {
+                link.addEventListener('click', function() {
+                    const url = this.textContent;
+                    m3u8UrlInput.value = url;
+                    showAlert('success', 'Sample URL loaded. Click "Load Video" to continue.');
+                });
+            });
+
+            // Tab Functionality
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(tc => tc.classList.remove('active'));
+                    
+                    tab.classList.add('active');
+                    const tabId = tab.getAttribute('data-tab');
+                    document.getElementById(`${tabId}-tab`).classList.add('active');
+                });
+            });
+
+            // File Upload Functionality
+            browseBtn.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', function(e) {
+                handleFileSelect(e);
+            });
+
+            function handleFileSelect(e) {
+                let file;
+                if (e.dataTransfer) {
+                    file = e.dataTransfer.files[0];
+                } else {
+                    file = e.target.files[0];
+                }
+                
+                if (file) {
+                    selectedFile = file;
+                    fileNameDisplay.innerHTML = `<p>Selected file: <strong>${file.name}</strong></p>`;
+                    loadFileBtn.removeAttribute('disabled');
+                    showAlert('success', `File selected: ${file.name}`);
+                }
+            }
+
+            // Drag and Drop Functionality
+            ['dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dragArea.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            dragArea.addEventListener('dragover', function() {
+                this.classList.add('active');
+            });
+
+            dragArea.addEventListener('dragleave', function() {
+                this.classList.remove('active');
+            });
+
+            dragArea.addEventListener('drop', function(e) {
+                this.classList.remove('active');
+                handleFileSelect(e);
+            });
+
+            // Load URL Functionality
+            loadUrlBtn.addEventListener('click', function() {
+                const url = m3u8UrlInput.value.trim();
+                if (url) {
+                    loadVideo(url);
+                } else {
+                    showAlert('danger', 'Please enter a valid M3U8 URL');
+                }
+            });
+
+            // Load File Functionality
+            loadFileBtn.addEventListener('click', function() {
+                if (selectedFile) {
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        try {
+                            const content = e.target.result;
+                            // Check if content is an M3U8 file
+                            if (!content.includes('#EXTM3U')) {
+                                showAlert('danger', 'The file does not appear to be a valid M3U8 file');
+                                return;
+                            }
+                            
+                            // Create a blob URL for the file content
+                            const blob = new Blob([content], { type: 'application/vnd.apple.mpegurl' });
+                            const url = URL.createObjectURL(blob);
+                            loadVideo(url);
+                        } catch (err) {
+                            showAlert('danger', 'Error reading file: ' + err.message);
+                        }
+                    };
+                    
+                    reader.onerror = function() {
+                        showAlert('danger', 'Error reading file');
+                    };
+                    
+                    reader.readAsText(selectedFile);
+                } else {
+                    showAlert('danger', 'Please select a .m3u8 file');
+                }
+            });
+
+            // Load Video Function
+            function loadVideo(url) {
+                resetVideo();
+                showAlert('success', 'Loading video, please wait...');
+                currentM3u8Url = url;
+                
+                try {
+                    if (Hls.isSupported()) {
+                        hls = new Hls({
+                            debug: false,
+                            xhrSetup: function(xhr, url) {
+                                // Set CORS headers if needed
+                                xhr.withCredentials = false;
+                            }
+                        });
+                        
+                        hls.loadSource(url);
+                        hls.attachMedia(video);
+                        
+                        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                            videoContainer.style.display = 'block';
+                            showAlert('success', 'Video loaded successfully! You can now play and convert it.');
+                            
+                            video.play().catch(err => {
+                                console.log('Auto-play prevented:', err);
+                                // This is fine, user can click play
+                            });
+                        });
+                        
+                        hls.on(Hls.Events.ERROR, function(event, data) {
+                            console.error('HLS Error:', data);
+                            
+                            if (data.fatal) {
+                                switch(data.type) {
+                                    case Hls.ErrorTypes.NETWORK_ERROR:
+                                        showAlert('danger', 'Network error: ' + data.details + '. Try using a sample URL or check CORS settings.');
+                                        hls.destroy();
+                                        break;
+                                        
+                                    case Hls.ErrorTypes.MEDIA_ERROR:
+                                        showAlert('danger', 'Media error: ' + data.details + '. Trying to recover...');
+                                        hls.recoverMediaError();
+                                        break;
+                                        
+                                    default:
+                                        showAlert('danger', 'Error loading video: ' + data.details);
+                                        hls.destroy();
+                                        break;
+                                }
+                            }
+                        });
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        // Native HLS support (Saf
